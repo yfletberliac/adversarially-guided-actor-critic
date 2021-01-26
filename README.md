@@ -41,6 +41,7 @@ pip install -e git://github.com/yfletberliac/vizdoomgym.git#egg=vizdoomgym
 
 ```
 brew install cmake boost sdl2
+pip install vizdoom==1.1.8
 pip install pyglet==1.5.11 -e git://github.com/yfletberliac/vizdoomgym.git#egg=vizdoomgym
 ```
 
