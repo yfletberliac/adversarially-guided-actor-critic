@@ -22,8 +22,8 @@ pip install -r requirements.txt
 python run_minigrid.py
 ```
 
-## Train AGAC on Vizdoom (follow "Vizdoom install" first)
-
+## Train AGAC on Vizdoom
+(follow [Vizdoom install](https://github.com/yfletberliac/adversarially-guided-actor-critic#vizdoom-install) first)
 ```
 python run_vizdoom.py
 ```
