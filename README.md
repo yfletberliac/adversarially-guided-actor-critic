@@ -34,19 +34,15 @@ python run_vizdoom.py
 
 ```
 sudo apt install cmake libboost-all-dev libsdl2-dev libfreetype6-dev libgl1-mesa-dev libglu1-mesa-dev libpng-dev libjpeg-dev libbz2-dev libfluidsynth-dev libgme-dev libopenal-dev zlib1g-dev timidity tar nasm
-pip install -e git://github.com/shakenes/vizdoomgym.git#egg=vizdoomgym
+pip install -e git://github.com/yfletberliac/vizdoomgym.git#egg=vizdoomgym
 ```
 
 #### macOS
 
 ```
 brew install cmake boost sdl2
-pip install pyglet==1.5.11 -e git://github.com/shakenes/vizdoomgym.git#egg=vizdoomgym
+pip install pyglet==1.5.11 -e git://github.com/yfletberliac/vizdoomgym.git#egg=vizdoomgym
 ```
-
-NB: if error "TypeError: 'Box' object is not iterable", that means
-this [PR](https://github.com/shakenes/vizdoomgym/pull/8/files) has not yet been merged. Making the corresponding 7-line
-change fixes the issue.
 
 ## Citation
 
