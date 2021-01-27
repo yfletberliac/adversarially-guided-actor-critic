@@ -1,7 +1,7 @@
 # Adversarially Guided Actor-Critic
 
-This repository contains an implementation of the AGAC algorithm introduced
-in [Adversarially Guided Actor-Critic](https://openreview.net/forum?id=_mQp5cr_iNy), published at ICLR 2021.
+This repository contains an implementation of AGAC, as introduced
+in [Adversarially Guided Actor-Critic](https://openreview.net/forum?id=_mQp5cr_iNy) (ICLR 2021).
 
 ## Installation
 
