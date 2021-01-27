@@ -192,13 +192,9 @@ class AGAC(ActorCriticRLModel):
                     tf.summary.scalar('value_function_loss', self.vf_loss)
                     tf.summary.scalar('pi_adv_logits', tf.reduce_mean(train_model.pi_adv_logits))
                     tf.summary.scalar('kl', self.approxkl)
-                    tf.summary.scalar('kl_pi_piold', .5 * tf.reduce_mean(tf.square(pi_softmax - piold_softmax)))
-                    tf.summary.scalar('kl_piadv_piadvold',
-                                      .5 * tf.reduce_mean(tf.square(piadv_softmax - piadvold_softmax)))
                     tf.summary.scalar('logratio_piadv_piadvold',
                                       .5 * tf.reduce_mean(tf.square(self.old_piadv_neglogpac - self.piadv_neglogpac)))
                     tf.summary.scalar('pi_piadv_kl', tf.reduce_mean(l_adv))
-                    tf.summary.scalar('pi_piadv_mse', tf.reduce_mean(.5 * tf.square(neglogpac - self.piadv_neglogpac)))
                     tf.summary.scalar('piadv_neglogpac', tf.reduce_mean(self.piadv_neglogpac))
                     tf.summary.scalar('clip_factor', self.clipfrac)
                     tf.summary.scalar('loss', loss)
