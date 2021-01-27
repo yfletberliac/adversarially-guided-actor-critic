@@ -548,7 +548,7 @@ def total_episode_reward_logger(rew, rewards, masks, writer, steps):
     :return: (np.array float) the updated total running reward
     :return: (np.array float) the updated total running reward
     """
-    with tf.variable_scope("environment_info", reuse=True):
+    with tf.compat.v1.variable_scope("environment_info", reuse=True):
         for env_idx in range(rewards.shape[0]):
             dones_idx = np.sort(np.argwhere(masks[env_idx]))
 
@@ -556,11 +556,11 @@ def total_episode_reward_logger(rew, rewards, masks, writer, steps):
                 rew[env_idx] += sum(rewards[env_idx])
             else:
                 rew[env_idx] += sum(rewards[env_idx, :dones_idx[0, 0]])
-                summary = tf.Summary(value=[tf.Summary.Value(tag="episode_reward", simple_value=rew[env_idx])])
+                summary = tf.compat.v1.Summary(value=[tf.compat.v1.Summary.Value(tag="episode_reward", simple_value=rew[env_idx])])
                 writer.add_summary(summary, steps + dones_idx[0, 0])
                 for k in range(1, len(dones_idx[:, 0])):
                     rew[env_idx] = sum(rewards[env_idx, dones_idx[k - 1, 0]:dones_idx[k, 0]])
-                    summary = tf.Summary(value=[tf.Summary.Value(tag="episode_reward", simple_value=rew[env_idx])])
+                    summary = tf.compat.v1.Summary(value=[tf.compat.v1.Summary.Value(tag="episode_reward", simple_value=rew[env_idx])])
                     writer.add_summary(summary, steps + dones_idx[k, 0])
                 rew[env_idx] = sum(rewards[env_idx, dones_idx[-1, 0]:])
 

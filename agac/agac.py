@@ -129,7 +129,7 @@ class AGAC(ActorCriticRLModel):
                                     tf.clip_by_value(train_model.value_flat - self.old_vpred_ph,
                                                      - self.clip_range_vf_ph, self.clip_range_vf_ph)
 
-                    self.old_pi_adv_neglogpac = tf.nn.softmax_cross_entropy_with_logits(
+                    self.old_pi_adv_neglogpac = tf.nn.softmax_cross_entropy_with_logits_v2(
                         logits=self.old_pi_adv_logits_ph,
                         labels=tf.one_hot(tf.stop_gradient(self.action_ph),
                                           train_model.pi_adv_logits.get_shape().as_list()[-1]))
@@ -177,14 +177,14 @@ class AGAC(ActorCriticRLModel):
                            + self.beta_adv * tf.reduce_mean(
                         l_adv)
 
-                    tf.summary.scalar('entropy_loss', self.entropy)
-                    tf.summary.scalar('policy_gradient_loss', self.pg_loss)
-                    tf.summary.scalar('value_function_loss', self.vf_loss)
-                    tf.summary.scalar('pi_adv_logits', tf.reduce_mean(train_model.pi_adv_logits))
-                    tf.summary.scalar('pi_piold_kl', self.approxkl)
-                    tf.summary.scalar('pi_piadv_kl', tf.reduce_mean(l_adv))
-                    tf.summary.scalar('clip_factor', self.clipfrac)
-                    tf.summary.scalar('loss', loss)
+                    tf.compat.v1.summary.scalar('entropy_loss', self.entropy)
+                    tf.compat.v1.summary.scalar('policy_gradient_loss', self.pg_loss)
+                    tf.compat.v1.summary.scalar('value_function_loss', self.vf_loss)
+                    tf.compat.v1.summary.scalar('pi_adv_logits', tf.reduce_mean(train_model.pi_adv_logits))
+                    tf.compat.v1.summary.scalar('pi_piold_kl', self.approxkl)
+                    tf.compat.v1.summary.scalar('pi_piadv_kl', tf.reduce_mean(l_adv))
+                    tf.compat.v1.summary.scalar('clip_factor', self.clipfrac)
+                    tf.compat.v1.summary.scalar('loss', loss)
 
                     with tf.compat.v1.variable_scope('model'):
                         self.params = tf.compat.v1.trainable_variables()
@@ -209,39 +209,39 @@ class AGAC(ActorCriticRLModel):
                         grads2, _grad_norm2 = tf.clip_by_global_norm(grads2, self.max_grad_norm)
                     grads2 = list(zip(grads2, var_list2))
 
-                train_op1 = tf.optimizers.Adam(learning_rate=self.learning_rate_ph * 0.3,
+                train_op1 = tf.compat.v1.train.AdamOptimizer(learning_rate=self.learning_rate_ph * 0.3,
                                                epsilon=1e-5).apply_gradients(grads1)
-                train_op2 = tf.optimizers.Adam(learning_rate=self.learning_rate_ph, epsilon=1e-5).apply_gradients(
+                train_op2 = tf.compat.v1.train.AdamOptimizer(learning_rate=self.learning_rate_ph, epsilon=1e-5).apply_gradients(
                     grads2)
                 self._train = tf.group(train_op1, train_op2)
 
                 self.loss_names = ['policy_loss', 'value_loss', 'policy_entropy', 'approxkl', 'clipfrac']
 
                 with tf.compat.v1.variable_scope("input_info", reuse=False):
-                    tf.summary.scalar('discounted_rewards', tf.reduce_mean(self.rewards_ph))
-                    tf.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate_ph))
-                    tf.summary.scalar('agac_c', tf.reduce_mean(self.agac_c_ph))
-                    tf.summary.scalar('advantage', tf.reduce_mean(self.advs_ph))
-                    tf.summary.scalar('agac_advantage', tf.reduce_mean(agac_advs_ph))
+                    tf.compat.v1.summary.scalar('discounted_rewards', tf.reduce_mean(self.rewards_ph))
+                    tf.compat.v1.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate_ph))
+                    tf.compat.v1.summary.scalar('agac_c', tf.reduce_mean(self.agac_c_ph))
+                    tf.compat.v1.summary.scalar('advantage', tf.reduce_mean(self.advs_ph))
+                    tf.compat.v1.summary.scalar('agac_advantage', tf.reduce_mean(agac_advs_ph))
 
-                    tf.summary.scalar('clip_range', tf.reduce_mean(self.clip_range_ph))
+                    tf.compat.v1.summary.scalar('clip_range', tf.reduce_mean(self.clip_range_ph))
                     if self.clip_range_vf_ph is not None:
-                        tf.summary.scalar('clip_range_vf', tf.reduce_mean(self.clip_range_vf_ph))
+                        tf.compat.v1.summary.scalar('clip_range_vf', tf.reduce_mean(self.clip_range_vf_ph))
 
-                    tf.summary.scalar('old_neglog_action_probability', tf.reduce_mean(self.old_pi_neglogpac_ph))
-                    tf.summary.scalar('old_value_pred', tf.reduce_mean(self.old_vpred_ph))
+                    tf.compat.v1.summary.scalar('old_neglog_action_probability', tf.reduce_mean(self.old_pi_neglogpac_ph))
+                    tf.compat.v1.summary.scalar('old_value_pred', tf.reduce_mean(self.old_vpred_ph))
 
                     if self.full_tensorboard_log:
-                        tf.summary.histogram('discounted_rewards', self.rewards_ph)
-                        tf.summary.histogram('learning_rate', self.learning_rate_ph)
-                        tf.summary.histogram('advantage', self.advs_ph)
-                        tf.summary.histogram('clip_range', self.clip_range_ph)
-                        tf.summary.histogram('old_neglog_action_probability', self.old_pi_neglogpac_ph)
-                        tf.summary.histogram('old_value_pred', self.old_vpred_ph)
+                        tf.compat.v1.summary.histogram('discounted_rewards', self.rewards_ph)
+                        tf.compat.v1.summary.histogram('learning_rate', self.learning_rate_ph)
+                        tf.compat.v1.summary.histogram('advantage', self.advs_ph)
+                        tf.compat.v1.summary.histogram('clip_range', self.clip_range_ph)
+                        tf.compat.v1.summary.histogram('old_neglog_action_probability', self.old_pi_neglogpac_ph)
+                        tf.compat.v1.summary.histogram('old_value_pred', self.old_vpred_ph)
                         if tf_util.is_image(self.observation_space):
-                            tf.summary.image('observation', train_model.obs_ph)
+                            tf.compat.v1.summary.image('observation', train_model.obs_ph)
                         else:
-                            tf.summary.histogram('observation', train_model.obs_ph)
+                            tf.compat.v1.summary.histogram('observation', train_model.obs_ph)
 
                 self.train_model = train_model
                 self.act_model = act_model
