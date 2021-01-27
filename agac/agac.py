@@ -356,10 +356,9 @@ class AGAC(ActorCriticRLModel):
                 cliprange_vf_now = cliprange_vf(frac)
 
                 callback.on_rollout_start()
-                # true_reward is the reward without discount
                 rollout = self.runner.run(callback)
                 # Unpack
-                obs, returns, true_returns, masks, actions, values, neglogpacs, pi_probas, pi_adv_logits, states, ep_infos, true_reward = rollout
+                obs, returns, true_returns, masks, actions, values, neglogpacs, pi_probas, pi_adv_logits, states, ep_infos, undiscounted_reward = rollout
                 callback.on_rollout_end()
 
                 # Early stopping due to the callback
@@ -411,7 +410,7 @@ class AGAC(ActorCriticRLModel):
 
                 if writer is not None:
                     total_episode_reward_logger(self.episode_reward,
-                                                true_reward.reshape((self.n_envs, self.n_steps)),
+                                                undiscounted_reward.reshape((self.n_envs, self.n_steps)),
                                                 masks.reshape((self.n_envs, self.n_steps)),
                                                 writer, self.num_timesteps)
 
