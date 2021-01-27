@@ -41,13 +41,12 @@ class AGAC(ActorCriticRLModel):
         self.advs_ph = None
         self.rewards_ph = None
         self.true_rewards_ph = None
-        self.piadv_polyak_ph = None
         self.old_neglog_pac_ph = None
         self.old_pi_probas_ph = None
         self.old_pi_adv_logits_ph = None
         self.old_vpred_ph = None
         self.learning_rate_ph = None
-        self.acc_rew_coef_ph = None
+        self.agac_c_ph = None
         self.clip_range_ph = None
         self.entropy = None
         self.avec_loss = None
@@ -118,14 +117,14 @@ class AGAC(ActorCriticRLModel):
                                                                          name="old_pi_adv_logits_ph")
                     self.old_vpred_ph = tf.compat.v1.placeholder(tf.float32, [None], name="old_vpred_ph")
                     self.learning_rate_ph = tf.compat.v1.placeholder(tf.float32, [], name="learning_rate_ph")
-                    self.acc_rew_coef_ph = tf.compat.v1.placeholder(tf.float32, [], name="acc_rew_coef_ph")
+                    self.agac_c_ph = tf.compat.v1.placeholder(tf.float32, [], name="agac_c_ph")
                     self.clip_range_ph = tf.compat.v1.placeholder(tf.float32, [], name="clip_range_ph")
 
                     neglogpac = train_model.proba_distribution.neglogp(self.action_ph)
                     self.entropy = tf.reduce_mean(train_model.proba_distribution.entropy())
 
                     self.policy_dist = train_model.proba_distribution.logits
-                    self.policy_c_dist = train_model.pi_critic_features_logits
+                    self.policy_c_dist = train_model.pi_adv_logits
 
                     vpred = train_model.value_flat
 
@@ -140,18 +139,18 @@ class AGAC(ActorCriticRLModel):
                                                      - self.clip_range_vf_ph, self.clip_range_vf_ph)
 
                     self.piadv_neglogpac = tf.nn.softmax_cross_entropy_with_logits(
-                        logits=train_model.pi_critic_features_logits,
+                        logits=train_model.pi_adv_logits,
                         labels=tf.one_hot(tf.stop_gradient(self.action_ph),
-                                          train_model.pi_critic_features_logits.get_shape().as_list()[-1]))
+                                          train_model.pi_adv_logits.get_shape().as_list()[-1]))
 
                     self.old_piadv_neglogpac = tf.nn.softmax_cross_entropy_with_logits(
                         logits=self.old_pi_adv_logits_ph,
                         labels=tf.one_hot(tf.stop_gradient(self.action_ph),
-                                          train_model.pi_critic_features_logits.get_shape().as_list()[-1]))
+                                          train_model.pi_adv_logits.get_shape().as_list()[-1]))
 
                     pi_softmax = tf.nn.softmax(train_model.proba_distribution.logits)
                     piold_softmax = self.old_pi_probas_ph
-                    piadv_softmax = tf.nn.softmax(train_model.pi_critic_features_logits)
+                    piadv_softmax = tf.nn.softmax(train_model.pi_adv_logits)
                     piadvold_softmax = tf.nn.softmax(self.old_pi_adv_logits_ph)
 
                     # KL
@@ -163,21 +162,21 @@ class AGAC(ActorCriticRLModel):
 
                     # Value function loss
                     vf_losses1 = tf.square(
-                        vpred - self.true_rewards_ph - self.acc_rew_coef_ph * pi_piadv_kl)
+                        vpred - self.true_rewards_ph - self.agac_c_ph * pi_piadv_kl)
                     vf_losses2 = tf.square(
-                        vpred_clipped - self.true_rewards_ph - self.acc_rew_coef_ph * pi_piadv_kl)
+                        vpred_clipped - self.true_rewards_ph - self.agac_c_ph * pi_piadv_kl)
                     self.vf_loss = .5 * tf.reduce_mean(tf.maximum(vf_losses1, vf_losses2))
 
                     # Policy loss
                     ratio = tf.exp(self.old_neglog_pac_ph - neglogpac)
 
-                    real_advs_ph = self.rewards_ph + self.acc_rew_coef_ph * tf.stop_gradient(
+                    agac_advs_ph = self.rewards_ph + self.agac_c_ph * tf.stop_gradient(
                         (self.old_piadv_neglogpac - self.old_neglog_pac_ph)) - self.old_vpred_ph
-                    mean_adv, var_adv = tf.nn.moments(real_advs_ph, axes=0)
-                    real_advs_ph = (real_advs_ph - mean_adv) / (tf.math.sqrt(var_adv) + 1e-8)
+                    mean_adv, var_adv = tf.nn.moments(agac_advs_ph, axes=0)
+                    agac_advs_ph = (agac_advs_ph - mean_adv) / (tf.math.sqrt(var_adv) + 1e-8)
 
-                    pg_losses = -real_advs_ph * ratio
-                    pg_losses2 = -real_advs_ph * tf.clip_by_value(ratio, 1.0 - self.clip_range_ph, 1.0 +
+                    pg_losses = -agac_advs_ph * ratio
+                    pg_losses2 = -agac_advs_ph * tf.clip_by_value(ratio, 1.0 - self.clip_range_ph, 1.0 +
                                                                   self.clip_range_ph)
                     self.pg_loss = tf.reduce_mean(tf.maximum(pg_losses, pg_losses2))
 
@@ -191,14 +190,7 @@ class AGAC(ActorCriticRLModel):
                     tf.summary.scalar('entropy_loss', self.entropy)
                     tf.summary.scalar('policy_gradient_loss', self.pg_loss)
                     tf.summary.scalar('value_function_loss', self.vf_loss)
-                    if isinstance(train_model.proba_distribution, CategoricalProbabilityDistribution):
-                        tf.summary.scalar('pi_critic_features_logits',
-                                          tf.reduce_mean(train_model.pi_critic_features_logits))
-                    if isinstance(train_model.proba_distribution, DiagGaussianProbabilityDistribution):
-                        tf.summary.scalar('pi_critic_features_mean',
-                                          tf.reduce_mean(train_model.pi_critic_features_mean))
-                        tf.summary.scalar('pi_critic_features_logstd',
-                                          tf.reduce_mean(train_model.pi_critic_features_logstd))
+                    tf.summary.scalar('pi_adv_logits', tf.reduce_mean(train_model.pi_adv_logits))
                     tf.summary.scalar('kl', self.approxkl)
                     tf.summary.scalar('kl_pi_piold', .5 * tf.reduce_mean(tf.square(pi_softmax - piold_softmax)))
                     tf.summary.scalar('kl_piadv_piadvold',
@@ -245,9 +237,9 @@ class AGAC(ActorCriticRLModel):
                 with tf.compat.v1.variable_scope("input_info", reuse=False):
                     tf.summary.scalar('discounted_rewards', tf.reduce_mean(self.rewards_ph))
                     tf.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate_ph))
-                    tf.summary.scalar('agac_c', tf.reduce_mean(self.acc_rew_coef_ph))
+                    tf.summary.scalar('agac_c', tf.reduce_mean(self.agac_c_ph))
                     tf.summary.scalar('advantage', tf.reduce_mean(self.advs_ph))
-                    tf.summary.scalar('real_advantage', tf.reduce_mean(real_advs_ph))
+                    tf.summary.scalar('agac_advantage', tf.reduce_mean(agac_advs_ph))
 
                     tf.summary.scalar('clip_range', tf.reduce_mean(self.clip_range_ph))
                     if self.clip_range_vf_ph is not None:
@@ -278,8 +270,8 @@ class AGAC(ActorCriticRLModel):
 
                 self.summary = tf.compat.v1.summary.merge_all()
 
-    def _train_step(self, learning_rate, acc_rew_coef, cliprange, obs, returns, true_returns, masks, actions, values,
-                    neglogpacs, policy_probas, pi_adv_logits, update, writer, states=None, cliprange_vf=None):
+    def _train_step(self, learning_rate, agac_c_now, cliprange, obs, returns, true_returns, masks, actions, values,
+                    neglogpacs, pi_probas, pi_adv_logits, update, writer, states=None, cliprange_vf=None):
         """
         Training of Algorithm
 
@@ -304,10 +296,10 @@ class AGAC(ActorCriticRLModel):
         td_map = {self.train_model.obs_ph: obs, self.action_ph: actions,
                   self.advs_ph: advs, self.rewards_ph: returns,
                   self.learning_rate_ph: learning_rate, self.clip_range_ph: cliprange,
-                  self.acc_rew_coef_ph: acc_rew_coef,
+                  self.agac_c_ph: agac_c_now,
                   self.old_neglog_pac_ph: neglogpacs, self.old_vpred_ph: values,
                   self.true_rewards_ph: true_returns,
-                  self.old_pi_probas_ph: policy_probas,
+                  self.old_pi_probas_ph: pi_probas,
                   self.old_pi_adv_logits_ph: pi_adv_logits
                   }
 
@@ -376,7 +368,7 @@ class AGAC(ActorCriticRLModel):
                 t_start = time.time()
                 frac = 1.0 - (update - 1.0) / n_updates
                 lr_now = self.learning_rate(frac)
-                acc_rew_now = self.agac_c(frac)
+                agac_c_now = self.agac_c(frac)
                 cliprange_now = self.cliprange(frac)
                 cliprange_vf_now = cliprange_vf(frac)
 
@@ -384,7 +376,7 @@ class AGAC(ActorCriticRLModel):
                 # true_reward is the reward without discount
                 rollout = self.runner.run(callback)
                 # Unpack
-                obs, returns, true_returns, masks, actions, values, neglogpacs, policy_probas, pi_adv_logits, states, ep_infos, true_reward = rollout
+                obs, returns, true_returns, masks, actions, values, neglogpacs, pi_probas, pi_adv_logits, states, ep_infos, true_reward = rollout
                 callback.on_rollout_end()
 
                 # Early stopping due to the callback
@@ -404,9 +396,9 @@ class AGAC(ActorCriticRLModel):
                             end = start + batch_size
                             mbinds = inds[start:end]
                             slices = (arr[mbinds] for arr in (
-                                obs, returns, true_returns, masks, actions, values, neglogpacs, policy_probas,
+                                obs, returns, true_returns, masks, actions, values, neglogpacs, pi_probas,
                                 pi_adv_logits))
-                            train_step = self._train_step(lr_now, acc_rew_now, cliprange_now, *slices, writer=writer,
+                            train_step = self._train_step(lr_now, agac_c_now, cliprange_now, *slices, writer=writer,
                                                           update=timestep, cliprange_vf=cliprange_vf_now)
                             mb_loss_vals.append(train_step[:-2])
 
@@ -426,7 +418,7 @@ class AGAC(ActorCriticRLModel):
                             mb_flat_inds = flat_indices[mb_env_inds].ravel()
                             slices = (arr[mb_flat_inds] for arr in (obs, returns, masks, actions, values, neglogpacs))
                             mb_states = states[mb_env_inds]
-                            train_step = self._train_step(lr_now, acc_rew_now, cliprange_now, *slices, update=timestep,
+                            train_step = self._train_step(lr_now, cliprange_now, *slices, update=timestep,
                                                           writer=writer, states=mb_states,
                                                           cliprange_vf=cliprange_vf_now)
                             mb_loss_vals.append(train_step[:-1])
@@ -447,7 +439,7 @@ class AGAC(ActorCriticRLModel):
                     logger.logkv("n_updates", update)
                     logger.logkv("total_timesteps", self.num_timesteps)
                     logger.logkv("fps", fps)
-                    logger.logkv("acc_rew_now", acc_rew_now)
+                    logger.logkv("agac_c", agac_c_now)
                     logger.logkv("explained_variance", float(explained_var))
                     if len(self.ep_info_buf) > 0 and len(self.ep_info_buf[0]) > 0:
                         logger.logkv('ep_reward_mean', safe_mean([ep_info['r'] for ep_info in self.ep_info_buf]))
@@ -519,14 +511,14 @@ class Runner(AbstractEnvRunner):
             - infos: (dict) the extra information of the model
         """
         # mb stands for minibatch
-        mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs, mb_policy_probas, mb_state_count, mb_pi_adv_logits = [], [], [], [], [], [], [], [], []
+        mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs, mb_pi_probas, mb_state_count, mb_pi_adv_logits = [], [], [], [], [], [], [], [], []
         mb_states = self.states
         ep_infos = []
         episode_state_count_dict = {}
         for _ in range(self.n_steps):
-            actions, values, self.states, neglogpacs, policy_probas, pi_adv_probas = self.model.step(self.obs,
-                                                                                                     self.states,
-                                                                                                     self.dones)
+            actions, values, self.states, neglogpacs, pi_probas, pi_adv_logits = self.model.step(self.obs,
+                                                                                                 self.states,
+                                                                                                 self.dones)
             mb_obs.append(self.obs.copy())
             if self.episodic_count:
                 episode_state_key = tuple(self.env.envs[0].agent_pos)
@@ -538,8 +530,8 @@ class Runner(AbstractEnvRunner):
             mb_actions.append(actions)
             mb_values.append(values)
             mb_neglogpacs.append(neglogpacs)
-            mb_policy_probas.append(policy_probas)
-            mb_pi_adv_logits.append(pi_adv_probas)
+            mb_pi_probas.append(pi_probas)
+            mb_pi_adv_logits.append(pi_adv_logits)
             mb_dones.append(self.dones)
             clipped_actions = actions
             # Clip the actions to avoid out of bound error
@@ -568,7 +560,7 @@ class Runner(AbstractEnvRunner):
         mb_actions = np.asarray(mb_actions)
         mb_values = np.asarray(mb_values, dtype=np.float32)
         mb_neglogpacs = np.asarray(mb_neglogpacs, dtype=np.float32)
-        mb_policy_probas = np.asarray(mb_policy_probas, dtype=np.float32)
+        mb_pi_probas = np.asarray(mb_pi_probas, dtype=np.float32)
         mb_pi_adv_logits = np.asarray(mb_pi_adv_logits, dtype=np.float32)
         mb_dones = np.asarray(mb_dones, dtype=np.bool)
         last_values = self.model.value(self.obs, self.states, self.dones)
@@ -598,12 +590,12 @@ class Runner(AbstractEnvRunner):
                 step] = true_last_gae_lam = true_delta + self.gamma * self.lam * nextnonterminal * true_last_gae_lam
         mb_returns = mb_advs + mb_values
         mb_true_returns = mb_true_advs + mb_values
-        mb_obs, mb_returns, mb_true_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, mb_policy_probas, mb_pi_adv_logits, true_reward = \
+        mb_obs, mb_returns, mb_true_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, mb_pi_probas, mb_pi_adv_logits, true_reward = \
             map(swap_and_flatten, (
-                mb_obs, mb_returns, mb_true_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, mb_policy_probas,
+                mb_obs, mb_returns, mb_true_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, mb_pi_probas,
                 mb_pi_adv_logits, true_reward))
 
-        return mb_obs, mb_returns, mb_true_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, mb_policy_probas, mb_pi_adv_logits, mb_states, ep_infos, true_reward
+        return mb_obs, mb_returns, mb_true_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs, mb_pi_probas, mb_pi_adv_logits, mb_states, ep_infos, true_reward
 
 
 def swap_and_flatten(arr):

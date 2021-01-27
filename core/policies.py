@@ -9,7 +9,7 @@ from gym.spaces import Discrete
 from core.distributions import make_proba_dist_type, CategoricalProbabilityDistribution, \
     MultiCategoricalProbabilityDistribution, DiagGaussianProbabilityDistribution, BernoulliProbabilityDistribution
 from core.input import observation_input
-from core.tf_layers import conv, linear, conv_to_fc, transformer
+from core.tf_layers import conv, linear, conv_to_fc
 
 
 def cnn_extractor(scaled_images, **kwargs):
@@ -245,9 +245,7 @@ class ActorCriticPolicy(BasePolicy):
         self._policy = None
         self._proba_distribution = None
         self._value_fn = None
-        self.pi_critic_features_logits = None
-        self.pi_critic_features_mean = None
-        self.pi_critic_features_logstd = None
+        self.pi_adv_logits = None
         self._action = None
         self._deterministic_action = None
 
@@ -384,12 +382,12 @@ class FeedForwardPolicy(ActorCriticPolicy):
 
         with tf.compat.v1.variable_scope("model", reuse=reuse):
             if feature_extraction == "cnn" and self.pdtype.probability_distribution_class() == CategoricalProbabilityDistribution:
-                pi_latent, vf_latent, adv_latent = cnn_extractor(self.processed_obs, **kwargs)
+                pi_latent, vf_latent, pi_adv_latent = cnn_extractor(self.processed_obs, **kwargs)
 
-                pi_critic_features_logits_latent = tf.nn.elu(
-                    linear(adv_latent, 'adv_latent', n_hidden=128, init_scale=np.sqrt(2)))
+                pi_adv_latent_2 = tf.nn.elu(
+                    linear(pi_adv_latent, 'pi_adv_latent', n_hidden=128, init_scale=np.sqrt(2)))
 
-                self.pi_critic_features_logits = linear(pi_critic_features_logits_latent, 'pi_adv', ac_space.n,
+                self.pi_adv_logits = linear(pi_adv_latent_2, 'pi_adv_latent_2', ac_space.n,
                                                         init_scale=0.01, init_bias=0.0)
 
             elif feature_extraction == "mlp" and self.pdtype.probability_distribution_class() == BernoulliProbabilityDistribution:
@@ -412,10 +410,10 @@ class FeedForwardPolicy(ActorCriticPolicy):
             action, value, neglogp = self.sess.run([self.deterministic_action, self.value_flat, self.neglogp],
                                                    {self.obs_ph: obs})
         else:
-            action, value, neglogp, policy_proba, pi_adv_proba = self.sess.run(
-                [self.action, self.value_flat, self.neglogp, self.policy_proba, self.pi_critic_features_logits],
+            action, value, neglogp, pi_proba, pi_adv_logits = self.sess.run(
+                [self.action, self.value_flat, self.neglogp, self.policy_proba, self.pi_adv_logits],
                 {self.obs_ph: obs})
-        return action, value, self.initial_state, neglogp, policy_proba, pi_adv_proba
+        return action, value, self.initial_state, neglogp, pi_proba, pi_adv_logits
 
     def proba_step(self, obs, state=None, mask=None):
         return self.sess.run(self.policy_proba, {self.obs_ph: obs})

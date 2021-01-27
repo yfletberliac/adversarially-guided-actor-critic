@@ -748,6 +748,9 @@ class BaseRLModel(ABC):
             raise ValueError("Error: Cannot determine if the observation is vectorized with the space type {}."
                              .format(observation_space))
 
+    def step(self, obs, states, dones):
+        pass
+
 
 class ActorCriticRLModel(BaseRLModel):
     """
