@@ -3,3 +3,4 @@ gym-minigrid==1.0.1
 tensorflow==1.14.0
 pandas==1.2.1
 opencv-python==4.5.1.48
+numpy==1.16.5
