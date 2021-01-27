@@ -638,3 +638,14 @@ def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=False, 
     if frame_stack:
         env = FrameStack(env, 4)
     return env
+
+
+def swap_and_flatten(arr):
+    """
+    swap and then flatten axes 0 and 1
+
+    :param arr: (np.ndarray)
+    :return: (np.ndarray)
+    """
+    shape = arr.shape
+    return arr.swapaxes(0, 1).reshape(shape[0] * shape[1], *shape[2:])

@@ -751,6 +751,9 @@ class BaseRLModel(ABC):
     def step(self, obs, states, dones):
         pass
 
+    def value(self, obs, states, dones):
+        pass
+
 
 class ActorCriticRLModel(BaseRLModel):
     """
