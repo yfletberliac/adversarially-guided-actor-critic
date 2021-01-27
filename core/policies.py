@@ -14,7 +14,7 @@ from core.tf_layers import conv, linear, conv_to_fc, transformer
 
 def cnn_extractor(scaled_images, **kwargs):
     """
-    CNN from Nature paper.
+    Constructs a CNN for AGAC as depicted in Fig. 11 in Appendix C of the paper.
 
     :param scaled_images: (TensorFlow Tensor) Image input placeholder
     :param kwargs: (dict) Extra keywords parameters for the convolutional layers of the CNN
@@ -393,32 +393,12 @@ class FeedForwardPolicy(ActorCriticPolicy):
                                                         init_scale=0.01, init_bias=0.0)
 
             elif feature_extraction == "mlp" and self.pdtype.probability_distribution_class() == BernoulliProbabilityDistribution:
-                pi_latent, vf_latent = mlp_extractor(tf.compat.v1.layers.flatten(self.processed_obs), net_arch, act_fun)
-
-                # todo clean that
-                # Self-Attention Layer
-                query = transformer(vf_latent, "query", 32)
-                value = transformer(vf_latent, "value", 32)
-                key = transformer(vf_latent, "key", 32)
-                query_value_key_attention = tf.keras.layers.Attention()([query, value, key])
-
-                self.pi_critic_features_logits = linear(query_value_key_attention, 'pi_critic', ac_space.n,
-                                                        init_scale=1.0, init_bias=0.0)
+                # TODO make a mlp version
+                raise NotImplementedError
 
             elif feature_extraction == "mlp" and self.pdtype.probability_distribution_class() == DiagGaussianProbabilityDistribution:
-                pi_latent, vf_latent = mlp_extractor(tf.compat.v1.layers.flatten(self.processed_obs), net_arch, act_fun)
-
-                # Self-Attention Layer
-                query = transformer(vf_latent, "query", 32)
-                value = transformer(vf_latent, "value", 32)
-                key = transformer(vf_latent, "key", 32)
-                query_value_key_attention = tf.keras.layers.Attention()([query, value, key])
-
-                self.pi_critic_features_mean = linear(query_value_key_attention, 'pi_critic', ac_space.shape[0],
-                                                      init_scale=1.0, init_bias=0.0)
-                self.pi_critic_features_logstd = tf.compat.v1.get_variable(name='pi_critic/logstd',
-                                                                           shape=[1, ac_space.shape[0]],
-                                                                           initializer=tf.zeros_initializer())
+                # TODO make a mlp version
+                raise NotImplementedError
 
             self._value_fn = linear(vf_latent, 'vf', 1)
 
