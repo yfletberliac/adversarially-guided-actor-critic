@@ -1,4 +1,4 @@
-# Adversarially Guided Actor-Critic
+# Adversarially Guided Actor-Critic (AGAC)
 
 This repository contains an implementation of AGAC, as introduced
 in [Adversarially Guided Actor-Critic](https://openreview.net/forum?id=_mQp5cr_iNy) (ICLR 2021).
