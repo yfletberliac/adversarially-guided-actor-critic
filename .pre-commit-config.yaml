@@ -1,0 +1,19 @@
+repos:
+-   repo: https://github.com/ambv/black
+    rev: 20.8b1
+    hooks:
+    - id: black
+      language_version: python3.8
+      files: ^agac_torch/
+-   repo: https://gitlab.com/pycqa/flake8
+    rev: 3.7.9
+    hooks:
+    - id: flake8
+      args: ['--max-line-length=88', '--extend-ignore=E203']
+      files: ^agac_torch/
+-   repo: https://github.com/pycqa/isort
+    rev: 5.6.4
+    hooks:
+    - id: isort
+      args: ["--profile", "black"]
+      files: ^agac_torch/
