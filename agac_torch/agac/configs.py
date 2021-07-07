@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import yaml
 
@@ -53,10 +53,7 @@ class LoggingConfig:
     experiment_name: str
     neptune_user_name: str
     neptune_project_name: str
-    num_descriptors: Optional[int] = None
-    num_cells_per_dimension: Optional[int] = None
-    min_values: Optional[List[int]] = None
-    max_values: Optional[List[int]] = None
+    log_grid: bool
 
     def is_valid(self) -> bool:
         return True

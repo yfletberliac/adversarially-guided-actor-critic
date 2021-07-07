@@ -1,8 +1,7 @@
 import argparse
 
 import gym
-import numpy as np
-import torch
+from gym_minigrid.minigrid import MiniGridEnv
 
 from agac.agac_trainer import AGAC
 from agac.configs import get_config_from_yaml
@@ -36,19 +35,20 @@ if __name__ == "__main__":
     config.algorithm.seed = args.seed
     config.algorithm.env_name = args.env_name
 
-    def state_key_extraction(env):
-        return tuple(env.agent_pos)
-
     env = gym.make(args.env_name)
-    env = MinigridWrapper(env, num_stack=4)
+    if isinstance(env, MiniGridEnv):
+        env = MinigridWrapper(env, num_stack=4)
+
+        def state_key_extraction(env):
+            return tuple(env.agent_pos)
+
+    else:
+
+        def state_key_extraction(env):
+            return env.get_grid_pos()
+
     if config.reinforcement_learning.episodic_count_coefficient > 0:
         env = EpisodicCountWrapper(env=env, state_key_extraction=state_key_extraction)
-
-    # set seeds
-    env.seed(config.algorithm.seed)
-    env.action_space.seed(config.algorithm.seed)
-    torch.manual_seed(config.algorithm.seed)
-    np.random.seed(config.algorithm.seed)
 
     # create trainer and train
     agac = AGAC(config, env)

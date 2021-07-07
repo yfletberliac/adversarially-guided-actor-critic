@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 from gym.spaces import Box, Space
 from mpi4py import MPI
+from torch.distributions import Categorical, Normal
+from torch.distributions.kl import kl_divergence
 
 from agac.configs import ExperimentConfig
 from agac.logger import LogData
@@ -58,6 +60,7 @@ class PPO:
             )
         else:
             # Continuous action space
+            observation_dim = observation_dim[0]
             action_dim = action_space.shape[0]
             max_action = action_space.high[0]
             self._actor = GaussianActor(
@@ -109,10 +112,7 @@ class PPO:
         self._actor.set_params(params)
 
     def select_action(
-        self,
-        observation: Observation,
-        deterministic: bool = False,
-        return_logits: bool = False,
+        self, observation: Observation, deterministic: bool = False
     ) -> Action:
         """
         Select an action given an observation. Returns the selected action
@@ -127,15 +127,23 @@ class PPO:
         action = action.detach().cpu().numpy().flatten()
         log_pi = log_pi.detach().cpu().numpy().flatten()
         adv_log_pi = adv_log_pi.detach().cpu().numpy().flatten()
-        if return_logits:
-            logits_pi = outs[-1]
-            logits_adv = self._adversary.forward(
-                observation, deterministic, return_log_prob=True
-            )[-1]
-            logits_pi = logits_pi.detach().cpu().numpy().flatten()
-            logits_adv = logits_adv.detach().cpu().numpy().flatten()
-            return action, log_pi, adv_log_pi, logits_pi, logits_adv
-        return action, log_pi, adv_log_pi
+
+        # compute additional distribution information
+        actor_distrib = self._actor.compute_distribution(observation)
+        adversary_distrib = self._adversary.compute_distribution(observation)
+        if self._discrete:
+            params_pi = outs[-1]
+            params_adv = adversary_distrib.logits
+            params_pi = params_pi.detach().cpu().numpy().flatten()
+            params_adv = params_adv.detach().cpu().numpy().flatten()
+        else:
+            mean = actor_distrib.mean.detach().cpu().numpy().flatten()
+            scale = actor_distrib.scale.detach().cpu().numpy().flatten()
+            params_pi = np.concatenate([mean, scale], -1)
+            mean = adversary_distrib.mean.detach().cpu().numpy().flatten()
+            scale = adversary_distrib.scale.detach().cpu().numpy().flatten()
+            params_adv = np.concatenate([mean, scale], -1)
+        return action, log_pi, adv_log_pi, params_pi, params_adv
 
     def compute_values(self, observations: Observation) -> np.ndarray:
         """
@@ -185,10 +193,10 @@ class PPO:
         values_old = torch.tensor(
             batch.values, device=self._device, dtype=torch.float32
         )
-        logits_pi = torch.tensor(
+        params_pi = torch.tensor(
             batch.logits_pi, device=self._device, dtype=torch.float32
         )
-        adv_logits_pi = torch.tensor(
+        adv_params_pi = torch.tensor(
             batch.adv_logits_pi, device=self._device, dtype=torch.float32
         )
 
@@ -230,11 +238,30 @@ class PPO:
         policy_loss -= self._entropy_coeff * entropy
 
         # compute kl
-        probs_pi = nn.Softmax(-1)(logits_pi)
-        adv_probs_pi = nn.Softmax(-1)(adv_logits_pi)
         with torch.no_grad():
-            pi_adv_kl = probs_pi * torch.log(probs_pi / (adv_probs_pi + 1e-8) + 1e-8)
-            pi_adv_kl = pi_adv_kl.sum(axis=-1)
+            if self._discrete:
+                probs_pi = nn.Softmax(-1)(params_pi)
+                adv_probs_pi = nn.Softmax(-1)(adv_params_pi)
+                old_pi_distribution = Categorical(probs=probs_pi.squeeze())
+                adv_old_pi_distribution = Categorical(
+                    probs=adv_probs_pi.squeeze() + 1e-8
+                )
+            else:
+                dim = pi_distribution.loc.shape[-1]
+                old_pi_mean = params_pi.squeeze()[:, :dim]
+                old_pi_std = adv_params_pi.squeeze()[:, dim:]
+                adv_old_pi_mean = adv_params_pi.squeeze()[:, :dim]
+                adv_old_pi_std = adv_params_pi.squeeze()[:, dim:]
+                old_pi_distribution = Normal(loc=old_pi_mean, scale=old_pi_std)
+                adv_old_pi_distribution = Normal(
+                    loc=adv_old_pi_mean, scale=adv_old_pi_std + 1e-8
+                )
+
+            # compute kl
+            pi_adv_kl = kl_divergence(old_pi_distribution, adv_old_pi_distribution)
+            pi_adv_kl = pi_adv_kl[:, None]
+            if isinstance(pi_distribution, Normal):
+                pi_adv_kl = pi_adv_kl.sum(axis=-1)
             pi_adv_kl *= intrinsic_coef
 
         # compute value losses
@@ -252,10 +279,15 @@ class PPO:
 
         # adversary loss
         adv_pi_distribution = self._adversary.compute_distribution(observations)
-        adv_loss = probs_pi * torch.log(
-            probs_pi / (adv_pi_distribution.probs + 1e-8) + 1e-8
-        )
-        adv_loss = adv_loss.sum(axis=-1).mean()
+        if self._discrete:
+            adv_pi_distribution.probs = adv_pi_distribution.probs + 1e-8
+            adv_loss = kl_divergence(old_pi_distribution, adv_pi_distribution)
+        else:
+            adv_pi_distribution.scale = adv_pi_distribution.scale + 1e-8
+            adv_loss = kl_divergence(old_pi_distribution, adv_pi_distribution).sum(
+                axis=-1
+            )
+        adv_loss = adv_loss.mean()
         self._monitor["adversary_loss"] = float(adv_loss)
         adv_loss *= self._adv_loss_coeff
 

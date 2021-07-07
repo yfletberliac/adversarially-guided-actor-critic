@@ -11,8 +11,9 @@
     "save_models_freq": 100000
     "use_neptune": True
     "experiment_name": "AGAC-MiniGrid"
-    "neptune_user_name": "c.bizonmonroc"
-    "neptune_project_name": "intrinsic-motivation"
+    "neptune_user_name": "user_name"
+    "neptune_project_name": "project_name"
+    "log_grid": True
 "reinforcement_learning":
     "actor_learning_rate": 0.0003
     "critic_learning_rate": 0.0003

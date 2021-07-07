@@ -42,16 +42,9 @@ class Logger:
             user_name = logging_config.neptune_user_name
             project_name = logging_config.neptune_project_name
             self._neptune_run = neptune.init(user_name + "/" + project_name)
-            # neptune.create_experiment(
-            #     name=logging_config.experiment_name,
-            #     params=dataclasses.asdict(config),
-            # )
             self._neptune_run["parameters"] = dataclasses.asdict(config)
             tags = [logging_config.experiment_name] + [config.algorithm.env_name]
             self._neptune_run["sys/tags"].add(tags)
-
-            # log the tags
-            # neptune.append_tags(tags)
 
         # Create directories
         self._create_dirs(
@@ -135,14 +128,13 @@ class Logger:
 
     def _log_in_neptune(self, logs: List[LogData]):
         """
-        Log daa in neptune.
+        Log data in neptune.
         """
         # log scalar metrics
         try:
             for log in logs:
                 if log.type == "scalar":
                     self._neptune_run[log.name].log(log.value)
-                    # neptune.log_metric(log.name, log.value)
                 if log.type == "image":
                     if (log.value.ndim == 3) and (log.value.shape[-1] != 3):
                         self._neptune_run[log.name].log(

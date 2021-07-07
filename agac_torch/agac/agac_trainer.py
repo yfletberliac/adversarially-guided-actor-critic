@@ -1,9 +1,10 @@
+import re
 from copy import deepcopy
 from typing import List, Tuple
 
 import gym
-import gym_minigrid
 import numpy as np
+import torch
 from gym.spaces import Box, Discrete
 from mpi4py import MPI
 from welford import Welford
@@ -12,7 +13,7 @@ from agac.agac_ppo import PPO
 from agac.configs import ExperimentConfig
 from agac.logger import LogData, Logger
 from agac.memory import Memory, Transition
-from agac.ppo_utils import DiscreteGrid, compute_advantages_and_returns
+from agac.utils import DiscreteGrid, compute_advantages_and_returns
 
 comm = MPI.COMM_WORLD
 num_workers = comm.Get_size()
@@ -37,6 +38,9 @@ class AGAC:
             self._logger = Logger(config)
         self._intrinsic_returns_stats = Welford()
         self._extrinsic_returns_stats = Welford()
+
+        if config.algorithm.seed != -1:
+            self._set_seed(config.algorithm.seed + rank)
 
         self._train_freq = config.algorithm.train_freq // num_workers
         self._eval_freq = config.algorithm.eval_freq // num_workers
@@ -66,15 +70,22 @@ class AGAC:
             self._state_key_extraction = env.state_key_extraction
 
         # logging grid
+        is_minigrid = bool(re.search("minigrid", env.spec.id.lower()))
         self._display_grid = (
-            DiscreteGrid(env)
-            if isinstance(env, gym_minigrid.minigrid.MiniGridEnv)
+            DiscreteGrid(self._evaluation_env)
+            if (config.logging.log_grid and is_minigrid)
             else None
         )
 
         self._total_timesteps = 0
         self._total_updates = 0
         self._episode_num = 0
+
+    def _set_seed(self, seed: int):
+        self._env.seed(seed)
+        self._env.action_space.seed(seed)
+        torch.manual_seed(seed)
+        np.random.seed(seed)
 
     def train(self):
         """
@@ -96,9 +107,6 @@ class AGAC:
         while self._total_timesteps < self._max_steps:
 
             if done:
-                # Update grid if display grid
-                if self._display_grid:
-                    self._display_grid.add()
                 # Reset environment
                 observation = self._env.reset()
                 self._episode_num += 1
@@ -195,7 +203,7 @@ class AGAC:
 
             # Select action randomly or according to policy
             action, log_pi, adv_log_pi, logits_pi, logits_adv = self._ppo.select_action(
-                observation, deterministic=False, return_logits=True
+                observation, deterministic=False
             )
             log_pi = float(log_pi)
             adv_log_pi = float(adv_log_pi)
@@ -272,15 +280,20 @@ class AGAC:
         last_rewards = []
         for _ in range(self._config.algorithm.num_episodes_eval):
             observation = self._evaluation_env.reset()
+            # Update grid if display grid
             episode_return = 0.0
             done = False
             while not done:
                 action = self._ppo.select_action(observation, deterministic=True)[0]
                 if not self._discrete:
                     action = np.clip(action, -self._max_action, self._max_action)
+                if self._display_grid:
+                    self._display_grid.add()
                 new_observation, reward, done, _ = self._evaluation_env.step(action)
                 episode_return += reward
                 observation = new_observation
+                if done and self._display_grid:
+                    self._display_grid.reset()
             last_rewards.append(reward)
             episodes_returns.append(episode_return)
         return np.asarray(episodes_returns).astype(np.float32), np.asarray(last_rewards)

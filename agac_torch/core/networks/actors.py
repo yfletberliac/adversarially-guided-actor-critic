@@ -49,7 +49,7 @@ class GaussianActor(RLModel):
         else:
             log_prob = None
 
-        return action, log_prob
+        return action, log_prob, distribution.mean, distribution.scale
 
     def compute_log_prob(self, observations: Observation, actions: Action) -> LogProb:
         # forward pass
