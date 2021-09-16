@@ -3,6 +3,10 @@
 This repository contains an implementation of AGAC, as introduced
 in [Adversarially Guided Actor-Critic](https://openreview.net/forum?id=_mQp5cr_iNy) (ICLR 2021).
 
+
+This is the original **TensorFlow** implementation.  
+Find the **PyTorch** implementation [here](https://github.com/yfletberliac/adversarially-guided-actor-critic/tree/main/agac_torch).
+
 ## Installation
 
 ```
@@ -59,4 +63,5 @@ year={2021},
 
 ## Acknowledgements
 
-The code is an adaptation of [Stable Baselines](https://github.com/hill-a/stable-baselines).
+The code is an adaptation of [Stable Baselines](https://github.com/hill-a/stable-baselines).  
+Thank you to [@cibeah](https://github.com/cibeah) for the PyTorch implementation.
