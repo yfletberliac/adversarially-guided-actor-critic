@@ -1,0 +1,38 @@
+"algorithm":
+    "max_steps": 200000000
+    "eval_freq": 4000
+    "num_epochs": 4
+    "num_episodes_eval": 1
+    "train_freq": 2048
+    "discrete": True
+    "gpu": 0
+"logging":
+    "save_models": False
+    "save_models_freq": 100000
+    "use_neptune": True
+    "experiment_name": "AGAC-MiniGrid"
+    "neptune_user_name": "user_name"
+    "neptune_project_name": "project_name"
+    "log_grid": True
+"reinforcement_learning":
+    "actor_learning_rate": 0.0003
+    "critic_learning_rate": 0.0003
+    "adversary_learning_rate": 0.00009
+    "layers_dim": [256]
+    "adv_layers_dim": [256, 128]
+    "discount": 0.99
+    "batch_size": 256
+    "lambda_gae": 0.95
+    "intrinsic_reward_coefficient": 0.0004
+    "entropy_coefficient": 0.01
+    "clipping_epsilon": 0.2
+    "value_loss_clip": 0.2
+    "value_loss_coeff": 0.25
+    "adversary_loss_coeff": 0.00004
+    "cnn_extractor": True
+    "layers_num_channels": [32,32,32]
+    "nb_stack": 4
+    "clip_grad_norm": 0.5
+    "episodic_count_coefficient": 0.0125
+
+
